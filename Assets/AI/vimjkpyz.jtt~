@@ -1,0 +1,127 @@
+using System.Collections;
+using System.Collections.Generic;
+using UnityEngine;
+
+public class Trainer : MonoBehaviour
+{
+    [SerializeField] private int[] turretLayers;
+    [SerializeField] private int[] torpedoLayers;
+    [SerializeField] private int gamesPerGeneration = 10;
+    [SerializeField] private GameObject turretPrefab;
+    [SerializeField] private GameObject torpedoPrefab;
+
+    [SerializeField] private string modelFolder;
+    [SerializeField] private string turretFileName;
+    [SerializeField] private string torpedoFileName;
+
+    [SerializeField, Range(0.0001f, 1)] float mutationChance = 0.05f;
+    [SerializeField, Range(0, 1)] float mutationStrength = 0.5f;
+    [SerializeField] float gameSpeed = 1;
+    [SerializeField] float resetTime;
+    [SerializeField] NeuralNetwork.Activations activationFunction;
+
+    private NeuralNetwork[] turretNetworks;
+    private NeuralNetwork[] torpedoNetworks;
+
+    int generation = 0;
+    float generationTime = 0;
+
+    void Start()
+    {
+        // We want even population sizes so we can clone the top half to the bottom and mutate the bottom half
+        if (gamesPerGeneration % 2 != 0)
+        {
+            gamesPerGeneration = 20;
+        }
+
+        InitNetworks();
+        InvokeRepeating(nameof(InstantiateAgents), 0.1f, resetTime);
+    }
+
+    // Update is called once per frame
+    void Update()
+    {
+        
+    }
+
+    void InitNetworks()
+    {
+        turretNetworks = new NeuralNetwork[gamesPerGeneration];
+        for (int i = 0; i < gamesPerGeneration; i++)
+        {
+            NeuralNetwork turretNetwork = new NeuralNetwork(turretLayers, activationFunction);
+
+            turretNetwork.Load(modelFolder + turretFileName);
+            turretNetworks[i] = turretNetwork;
+        }
+    }
+
+    /*void InstantiateAgents()
+    {
+        Time.timeScale = gameSpeed;
+
+        if (agents != null)
+        {
+            SortNetworks();
+
+            foreach (ShipAgent agent in agents)
+            {
+                Destroy(agent.meshRenderer.material);
+                Destroy(agent.gameObject);
+            }
+        }
+
+        deadGameLayers = new bool[numGameLayers];
+        agents = new ShipAgent[numGameLayers, agentsPerGameLayer];
+        for (int i = 0; i < numGameLayers; i++)
+        {
+            for (int j = 0; j < gamesPerGeneration; j++)
+            {
+                float angle = (2 * Mathf.PI / agentsPerGameLayer) * j;
+                float x = spawnRadius * Mathf.Cos(angle);
+                float z = spawnRadius * Mathf.Sin(angle);
+                Vector3 spawnPosition = transform.position + new Vector3(x, 0, z);
+
+                ShipAgent agent = Instantiate(agentPrefab, spawnPosition, Quaternion.LookRotation(new Vector3(x, 0, z)), transform).GetComponent<ShipAgent>();
+                agent.neuralNetwork = neuralNetworks[i, j];
+                agent.trainer = this;
+                agent.customLayers.gameLayer = i;
+                agent.bulletParent = bulletParent;
+                agent.GetComponent<MeshRenderer>().material.color = Color.HSVToRGB(0 + (float)i / numGameLayers, 1, 1);
+                agents[i, j] = agent;
+            }
+        }
+
+        onReset?.Invoke();
+
+        generationTime = Time.unscaledTime;
+    }*/
+
+    /*void SortNetworks()
+    {
+        float totalFitness = 0;
+        foreach (ShipAgent agent in agents)
+        {
+            totalFitness += agent.UpdateFitness();
+        }
+
+        List<NeuralNetwork> flatNeuralNetworks = turretNetworks.Cast<NeuralNetwork>().ToList();
+        flatNeuralNetworks.Sort();
+        flatNeuralNetworks[^1].Save(modelFolder + fileName);
+        Debug.Log("Generation " + generation + " (" + (Time.unscaledTime - generationTime).ToString() + "s)\nAverage: " + (totalFitness / flatNeuralNetworks.Count) + ", Best: " + flatNeuralNetworks[^1].fitness + ", Worst: " + flatNeuralNetworks[0].fitness);
+
+        generation++;
+        int halfLayers = gamesPerGeneration / 2;
+        for (int i = 0; i < halfLayers; i++)
+        {
+            neuralNetworks[i, j] = flatNeuralNetworks[^((i + 1) * agentsPerGameLayer + j)].Copy(new NeuralNetwork(networkLayers, activationFunction));
+            neuralNetworks[i, j].Mutate(mutationChance, mutationStrength);
+        }
+        for (int i = halfLayers; i < gamesPerGeneration; i++)
+        {
+            neuralNetworks[i, j] = flatNeuralNetworks[i * agentsPerGameLayer + j].Copy(new NeuralNetwork(networkLayers, activationFunction));
+        }
+
+        flatNeuralNetworks.Clear();
+    }*/
+}

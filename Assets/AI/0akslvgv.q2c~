@@ -1,0 +1,63 @@
+using System.Collections;
+using System.Collections.Generic;
+using UnityEngine;
+
+public class Trainer : MonoBehaviour
+{
+    [SerializeField] private int[] turretLayers;
+    [SerializeField] private int[] torpedoLayers;
+    [SerializeField] private int gamesPerGeneration = 10;
+    [SerializeField] private GameObject turretPrefab;
+    [SerializeField] private GameObject torpedoPrefab;
+
+    [SerializeField] private string turretModelPath;
+    [SerializeField] private string torpedoModelPath;
+
+    private NeuralNetwork[] turretNetworks;
+    private NeuralNetwork[] torpedoNetworks;
+
+    void Start()
+    {
+        
+    }
+
+    // Update is called once per frame
+    void Update()
+    {
+        
+    }
+
+    void SortNetworks()
+    {
+        float totalFitness = 0;
+        foreach (ShipAgent agent in agents)
+        {
+            totalFitness += agent.UpdateFitness();
+        }
+
+        List<NeuralNetwork> flatNeuralNetworks = neuralNetworks.Cast<NeuralNetwork>().ToList();
+        flatNeuralNetworks.Sort();
+        flatNeuralNetworks[^1].Save(modelFolder + fileName);
+        Debug.Log("Generation " + generation + " (" + (Time.unscaledTime - generationTime).ToString() + "s)\nAverage: " + (totalFitness / flatNeuralNetworks.Count) + ", Best: " + flatNeuralNetworks[^1].fitness + ", Worst: " + flatNeuralNetworks[0].fitness);
+
+        generation++;
+        int halfLayers = numGameLayers / 2;
+        for (int i = 0; i < halfLayers; i++)
+        {
+            for (int j = 0; j < agentsPerGameLayer; j++)
+            {
+                neuralNetworks[i, j] = flatNeuralNetworks[^((i + 1) * agentsPerGameLayer + j)].Copy(new NeuralNetwork(networkLayers, activationFunction));
+                neuralNetworks[i, j].Mutate(mutationChance, mutationStrength);
+            }
+        }
+        for (int i = halfLayers; i < numGameLayers; i++)
+        {
+            for (int j = 0; j < agentsPerGameLayer; j++)
+            {
+                neuralNetworks[i, j] = flatNeuralNetworks[i * agentsPerGameLayer + j].Copy(new NeuralNetwork(networkLayers, activationFunction));
+            }
+        }
+
+        flatNeuralNetworks.Clear();
+    }
+}

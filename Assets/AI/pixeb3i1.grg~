@@ -1,0 +1,159 @@
+using System.Collections;
+using System.Collections.Generic;
+using UnityEditor.Experimental.GraphView;
+using UnityEngine;
+using System;
+
+public class AITorpedo : MonoBehaviour
+{
+    private NeuralNetwork network;
+    public int[] layers;
+    private float score;
+
+    [SerializeField] private Transform target;
+    private Rigidbody targetRB;
+    [SerializeField] private float propulsionForce = 1000f;
+    [SerializeField] private float rotateSpeed = 100f;
+    [SerializeField] private float moveAngleThreshold = 5f;
+    private Rigidbody attachedRB;
+    private bool active;
+    [SerializeField] private ParticleSystem rocketParticles;
+
+    [SerializeField] private LayerMask ignoreLayers;
+    [SerializeField] private ParticleSystem explosionParticles;
+    [SerializeField] private float explosionRadius = 15f;
+    [SerializeField] private float explosionForce = 100f;
+
+    [SerializeField] private bool nonVRActivate;
+
+    private Vector3 lastTargetVelocity;
+    private Vector3 targetAcceleration;
+
+    private Vector3 lastVelocity;
+    private Vector3 acceleration;
+
+    private Vector3 targetDirection;
+
+    private void Start()
+    {
+        attachedRB = GetComponent<Rigidbody>();
+    }
+
+    private void FixedUpdate()
+    {
+        if (nonVRActivate)
+        {
+            nonVRActivate = false;
+            if (target != null)
+                StartCoroutine(ActivateRoutine(0));
+        }
+        if (active)
+        {
+            if (target != null)
+            {
+                targetAcceleration = (targetRB.velocity - lastTargetVelocity) / Time.fixedDeltaTime;
+                acceleration = (attachedRB.velocity - lastVelocity) / Time.fixedDeltaTime;
+                float[] inputs = new float[18];
+                inputs[0] = targetRB.position.x;
+                inputs[1] = targetRB.position.y;
+                inputs[2] = targetRB.position.z;
+                inputs[3] = targetRB.velocity.x;
+                inputs[4] = targetRB.velocity.y;
+                inputs[5] = targetRB.velocity.z;
+                inputs[6] = targetAcceleration.x;
+                inputs[7] = targetAcceleration.y;
+                inputs[8] = targetAcceleration.z;
+                inputs[9] = transform.position.x;
+                inputs[10] = transform.position.y;
+                inputs[11] = transform.position.z;
+                inputs[12] = attachedRB.velocity.x;
+                inputs[13] = attachedRB.velocity.y;
+                inputs[14] = attachedRB.velocity.z;
+                inputs[15] = acceleration.x;
+                inputs[16] = acceleration.y;
+                inputs[17] = acceleration.z;
+
+                float[] outputs = network.Forward(inputs);
+                targetDirection = new Vector3(outputs[0], outputs[1], outputs[2]);
+                float force = propulsionForce * (outputs[3] + 1) * 0.5f;
+
+                transform.rotation = Quaternion.RotateTowards(transform.rotation, Quaternion.LookRotation(targetDirection), Time.fixedDeltaTime * rotateSpeed);
+
+                attachedRB.AddForce(transform.forward * force, ForceMode.Acceleration);
+
+                if (force > 0.01f)
+                {
+                    if (!rocketParticles.isPlaying)
+                        rocketParticles.Play();
+                }
+                else
+                {
+                    if (rocketParticles.isPlaying)
+                    {
+                        rocketParticles.Stop();
+                        rocketParticles.Clear();
+                    }
+                }
+
+                lastTargetVelocity = targetRB.velocity;
+                lastVelocity = attachedRB.velocity;
+            }
+            else
+            {
+                attachedRB.AddForce(transform.forward * propulsionForce, ForceMode.Acceleration);
+            }
+        }
+        else
+        {
+            if (rocketParticles.isPlaying)
+            {
+                rocketParticles.Stop();
+                rocketParticles.Clear();
+            }
+        }
+    }
+
+    public void Activate(Rigidbody rigidbody, Transform target, float delay)
+    {
+        attachedRB = rigidbody;
+        this.target = target;
+        target.TryGetComponent(out targetRB);
+        StartCoroutine(ActivateRoutine(delay));
+    }
+
+    private IEnumerator ActivateRoutine(float delay)
+    {
+        yield return new WaitForSeconds(delay);
+        rocketParticles.Play();
+        active = true;
+        GetComponent<Collider>().enabled = true;
+    }
+
+    public void Detonate()
+    {
+        Instantiate(explosionParticles, transform.position, transform.rotation);
+        Collider[] colliders = new Collider[32];
+        int hits = Physics.OverlapSphereNonAlloc(transform.position, explosionRadius, colliders, ~ignoreLayers, QueryTriggerInteraction.Ignore);
+        for (int i = 0; i < hits; i++)
+        {
+            if (colliders[i].TryGetComponent<Rigidbody>(out var otherRB))
+            {
+                otherRB.AddExplosionForce(explosionForce, transform.position, explosionRadius, 0, ForceMode.Impulse);
+            }
+        }
+        Destroy(gameObject);
+    }
+
+    private void OnCollisionEnter(Collision collision)
+    {
+        Detonate();
+    }
+
+    private void OnTriggerEnter(Collider other)
+    {
+        if (other.transform == target)
+        {
+            Detonate();
+        }
+    }
+}
